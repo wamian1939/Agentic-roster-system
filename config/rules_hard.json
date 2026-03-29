@@ -1,0 +1,123 @@
+[
+  {
+    "id": "H_AVAILABILITY",
+    "type": "hard",
+    "scope": "assignment",
+    "constraint": {
+      "name": "only_assign_if_available"
+    },
+    "message": "员工{e}在{day}-{shift}不可用，但被排班。"
+  },
+  {
+    "id": "H_OPEN_EARLY",
+    "type": "hard",
+    "scope": "shift",
+    "constraint": {
+      "name": "open_early_from_aa_bb",
+      "params": {
+        "required": 3,
+        "min_full_position": 1
+      }
+    },
+    "message": "开早(10-11)需3人，从AA或BB中选，至少1名全岗。"
+  },
+  {
+    "id": "H_DAY_COVERAGE",
+    "type": "hard",
+    "scope": "shift",
+    "constraint": {
+      "name": "min_coverage_with_full_position",
+      "params": {
+        "shifts": ["BB", "AA"],
+        "required": 4,
+        "min_full_position": 1
+      }
+    },
+    "message": "白天(11-17)需4人，且至少1名全岗。"
+  },
+  {
+    "id": "H_NIGHT_COVERAGE",
+    "type": "hard",
+    "scope": "shift",
+    "constraint": {
+      "name": "min_coverage_with_full_position",
+      "params": {
+        "shifts": ["CC", "AA"],
+        "required": 5,
+        "min_full_position": 1
+      }
+    },
+    "message": "晚上(17-22)需5人，且至少1名全岗。"
+  },
+  {
+    "id": "H_MAX_WEEK_HOURS",
+    "type": "hard",
+    "scope": "employee_week",
+    "constraint": {
+      "name": "max_week_hours",
+      "params": {
+        "shift_hours": {
+          "AA": 12,
+          "BB": 6,
+          "CC": 5
+        }
+      }
+    },
+    "message": "员工{e}本周工时{hours}超过上限{max_hours}。"
+  },
+  {
+    "id": "M_DEMO_SPECIAL_DAY_DEMANDS",
+    "type": "meta",
+    "scope": "demo",
+    "constraint": {
+      "name": "demo_special_day_demands",
+      "params": {
+        "overrides": [
+          {"day": 5, "BB": 4, "CC": 6, "LATE14": 1},
+          {"day": 6, "BB": 6, "CC": 6, "LATE14": 1},
+          {"day": 7, "BB": 7, "CC": 6, "LATE14": 0}
+        ]
+      }
+    },
+    "message": "Demo 特殊日期需求配置。"
+  },
+  {
+    "id": "M_WEEKEND_ASSIGN_POLICY",
+    "type": "meta",
+    "scope": "demo",
+    "constraint": {
+      "name": "weekend_assign_policy",
+      "params": {
+        "prefer_even_distribution": true,
+        "extra_allowed_employee": "Winnie Wang"
+      }
+    },
+    "message": "周末尽量均匀分配，指定员工可多给。"
+  },
+  {
+    "id": "M_AA_DAILY_POLICY",
+    "type": "meta",
+    "scope": "demo",
+    "constraint": {
+      "name": "aa_daily_policy",
+      "params": {
+        "max_aa_per_day_preferred": 2,
+        "relax_if_infeasible": true
+      }
+    },
+    "message": "每天全天班优先不超过2人，必要时再放宽。"
+  },
+  {
+    "id": "M_COMBO_DAILY_POLICY",
+    "type": "meta",
+    "scope": "demo",
+    "constraint": {
+      "name": "combo_daily_policy",
+      "params": {
+        "max_bb_cc_combo_per_day_preferred": 2,
+        "relax_if_infeasible": true
+      }
+    },
+    "message": "每天白+晚连班优先不超过2人，必要时再放宽。"
+  }
+]

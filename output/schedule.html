@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>排班表</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: #f3f5f8; font-family: "Microsoft YaHei", sans-serif; color: #1f2937; }
+h1 { margin: 0 0 10px; }
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.toolbar button { padding: 8px 14px; border: 1px solid #2f80ed; color: #2f80ed; background: #fff; border-radius: 6px; cursor: pointer; }
+.toolbar button:hover { background: #2f80ed; color: #fff; }
+.curr-date { margin-left: auto; font-weight: 700; }
+.day-page { display: none; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.08); }
+.day-page.active { display: block; }
+.day-header { background: #2f80ed; color: #fff; padding: 14px; text-align: center; font-size: 18px; font-weight: 700; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 12px; border-bottom: 1px solid #e5e7eb; background: #f8fbff; }
+.card { background: #fff; border: 1px solid #dbe3ef; border-radius: 8px; padding: 8px 10px; }
+.card b { font-size: 12px; color: #475569; display: block; margin-bottom: 4px; }
+.card span { font-size: 12px; }
+.timeline-wrap { position: relative; padding: 12px 12px 12px 56px; overflow-x: auto; }
+.time-axis { position: absolute; left: 10px; top: 44px; width: 42px; color: #6b7280; font-size: 12px; }
+.tm { position: absolute; transform: translateY(-7px); }
+.lanes-head { position: relative; height: 30px; }
+.lane-h { position: absolute; top: 0; text-align: center; padding-top: 5px; font-size: 12px; border: 1px solid #e5e7eb; background: #f3f4f6; border-radius: 6px; color: #374151; }
+.lane-h.senior { border-color: #f59e0b; background: #fff7e6; color: #9a5b00; }
+.blocks { position: relative; margin-top: 6px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fcfdff; }
+.hline { position: absolute; left: 0; right: 0; height: 1px; background: #edf1f5; }
+.shift-block { position: absolute; border-radius: 8px; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 1px 2px rgba(0,0,0,0.08); padding: 6px 8px; overflow: hidden; }
+.shift-block.senior { border-color: rgba(245,158,11,0.9); box-shadow: 0 0 0 1px rgba(245,158,11,0.25) inset; }
+.shift-label { font-weight: 700; font-size: 12px; }
+.shift-time { font-size: 11px; color: #475569; margin-top: 1px; }
+.shift-emp { font-size: 12px; margin-top: 4px; }
+.foot { margin-top: 12px; color: #6b7280; font-size: 12px; text-align: center; }
+.rules-panel { margin: 10px 0 14px; padding: 10px 12px; background: #fff; border: 1px solid #dbe3ef; border-radius: 10px; }
+.rules-panel h2 { margin: 0 0 8px; font-size: 16px; }
+.rules-panel p { margin: 0 0 8px; font-size: 13px; color: #334155; }
+.rules-panel ul { margin: 0; padding-left: 20px; }
+.rules-panel li { margin-bottom: 10px; font-size: 12px; line-height: 1.5; }
+.rules-panel .s-title { font-weight: 700; margin-bottom: 2px; }
+.rules-panel .tag { display:inline-block; font-size:10px; border-radius:10px; padding:1px 6px; margin-left:6px; color:#fff; }
+.rules-panel .tag.high { background:#dc2626; }
+.rules-panel .tag.medium { background:#d97706; }
+.rules-panel .tag.low { background:#2563eb; }
+.rules-actions { display:flex; gap:8px; align-items:center; margin:8px 0 2px; flex-wrap:wrap; }
+.rules-actions input { padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:230px; }
+.rules-actions button { padding:6px 10px; border:1px solid #2f80ed; color:#2f80ed; background:#fff; border-radius:6px; cursor:pointer; }
+.rules-actions button:hover { background:#2f80ed; color:#fff; }
+.apply-msg { font-size:12px; color:#475569; margin-top:4px; min-height:18px; }
+</style>
+</head>
+<body>
+<h1>排班表（员工并列泳道）</h1>
+<div class="rules-panel">
+  <h2>本周排班建议</h2>
+  <p>优化员工排班公平性和连班限制</p>
+  <div class="rules-actions">
+    <input id="api-base" value="http://127.0.0.1:8765" />
+    <button onclick="applyAndRerun()">Apply建议并重排</button>
+  </div>
+  <div class="apply-msg" id="apply-msg">先在终端运行: python integration/demo_apply_server.py</div>
+  <ul><li><div class="s-title">调整员工排班量 <span class="tag high">HIGH</span></div><div><b>建议：</b>减少超负荷员工排班，增加欠排员工班次</div><div><b>原因：</b>部分员工排班超预期，影响公平</div><div><b>怎么做：</b>优先给Viko Ge、Winnie Wang等欠排员工排班</div></li><li><div class="s-title">控制全天班人数 <span class="tag medium">MEDIUM</span></div><div><b>建议：</b>优先每天全天班不超过2人，必要时放宽</div><div><b>原因：</b>减少全天班过多，避免员工疲劳</div><div><b>怎么做：</b>严格执行max_aa_per_day_preferred为2的限制</div></li><li><div class="s-title">限制白晚连班人数 <span class="tag medium">MEDIUM</span></div><div><b>建议：</b>优先每天白晚连班不超过2人，必要时放宽</div><div><b>原因：</b>防止连班过多，保障员工休息</div><div><b>怎么做：</b>严格执行max_bb_cc_combo_per_day_preferred为2的限制</div></li></ul>
+</div>
+<div class="toolbar">
+  <button onclick="nav(-1)">上一日</button>
+  <button onclick="show(1)">今天</button>
+  <button onclick="nav(1)">下一日</button>
+  <span class="curr-date" id="curr-date"></span>
+</div>
+
+        <div class="day-page" id="day-1" data-date="2026-03-30" data-name="周一">
+          <div class="day-header">周一 2026-03-30</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Berlin, Ou Liu, Simeon Tian</span></div>
+            <div class="card"><b>14点到岗</b><span>-</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>4 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>5 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:4 CC:5</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:1360px"><div class="lane-h senior" style="left:0px;width:170px">Berlin</div><div class="lane-h senior" style="left:170px;width:170px">Halsey</div><div class="lane-h senior" style="left:340px;width:170px">Jasmine Liu</div><div class="lane-h senior" style="left:510px;width:170px">Jenny Chen</div><div class="lane-h senior" style="left:680px;width:170px">Judy Zhu</div><div class="lane-h senior" style="left:850px;width:170px">Ou Liu</div><div class="lane-h senior" style="left:1020px;width:170px">Simeon Tian</div><div class="lane-h senior" style="left:1190px;width:170px">Tomy</div></div>
+            <div class="blocks" style="width:1360px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:162px;left:4px;width:162px;height:276px;background:hsl(4 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Berlin · 高级</div></div><div class="shift-block senior" style="top:442px;left:174px;width:162px;height:196px;background:hsl(14 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Halsey · 高级</div></div><div class="shift-block senior" style="top:202px;left:344px;width:162px;height:236px;background:hsl(1 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Jasmine Liu · 高级</div></div><div class="shift-block senior" style="top:442px;left:514px;width:162px;height:196px;background:hsl(10 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jenny Chen · 高级</div></div><div class="shift-block senior" style="top:442px;left:684px;width:162px;height:196px;background:hsl(35 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Judy Zhu · 高级</div></div><div class="shift-block senior" style="top:162px;left:854px;width:162px;height:476px;background:hsl(6 62% 82%)"><div class="shift-label">白天 + 晚班</div><div class="shift-time">10:00~22:00</div><div class="shift-emp">Ou Liu · 高级</div></div><div class="shift-block senior" style="top:162px;left:1024px;width:162px;height:276px;background:hsl(7 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Simeon Tian · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(25 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Tomy · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-2" data-date="2026-03-31" data-name="周二">
+          <div class="day-header">周二 2026-03-31</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Junbin Wu, Maomao Wu, Tina Gu</span></div>
+            <div class="card"><b>14点到岗</b><span>-</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>4 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>5 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:4 CC:5</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:1360px"><div class="lane-h senior" style="left:0px;width:170px">Berlin</div><div class="lane-h senior" style="left:170px;width:170px">Jenny Chen</div><div class="lane-h senior" style="left:340px;width:170px">Junbin Wu</div><div class="lane-h senior" style="left:510px;width:170px">Kelsey</div><div class="lane-h senior" style="left:680px;width:170px">Maomao Wu</div><div class="lane-h senior" style="left:850px;width:170px">Shelly Wang</div><div class="lane-h senior" style="left:1020px;width:170px">Tina Gu</div><div class="lane-h senior" style="left:1190px;width:170px">Winnie Wang</div></div>
+            <div class="blocks" style="width:1360px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:442px;left:4px;width:162px;height:196px;background:hsl(4 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Berlin · 高级</div></div><div class="shift-block senior" style="top:442px;left:174px;width:162px;height:196px;background:hsl(10 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jenny Chen · 高级</div></div><div class="shift-block senior" style="top:162px;left:344px;width:162px;height:276px;background:hsl(10 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Junbin Wu · 高级</div></div><div class="shift-block senior" style="top:202px;left:514px;width:162px;height:236px;background:hsl(21 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Kelsey · 高级</div></div><div class="shift-block senior" style="top:162px;left:684px;width:162px;height:476px;background:hsl(38 62% 82%)"><div class="shift-label">白天 + 晚班</div><div class="shift-time">10:00~22:00</div><div class="shift-emp">Maomao Wu · 高级</div></div><div class="shift-block senior" style="top:442px;left:854px;width:162px;height:196px;background:hsl(14 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Shelly Wang · 高级</div></div><div class="shift-block senior" style="top:162px;left:1024px;width:162px;height:276px;background:hsl(16 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Tina Gu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(7 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Winnie Wang · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-3" data-date="2026-04-01" data-name="周三">
+          <div class="day-header">周三 2026-04-01</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Jack Li, Kelly Lin, Simeon Tian</span></div>
+            <div class="card"><b>14点到岗</b><span>-</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>4 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>5 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:4 CC:5</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:1530px"><div class="lane-h senior" style="left:0px;width:170px">Jack Li</div><div class="lane-h senior" style="left:170px;width:170px">Jasmine Liu</div><div class="lane-h senior" style="left:340px;width:170px">Junbin Wu</div><div class="lane-h senior" style="left:510px;width:170px">Kelly Lin</div><div class="lane-h senior" style="left:680px;width:170px">Kelsey</div><div class="lane-h senior" style="left:850px;width:170px">Shelly Wang</div><div class="lane-h senior" style="left:1020px;width:170px">Simeon Tian</div><div class="lane-h senior" style="left:1190px;width:170px">Tomy</div><div class="lane-h senior" style="left:1360px;width:170px">Winnie Wang</div></div>
+            <div class="blocks" style="width:1530px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:162px;left:4px;width:162px;height:276px;background:hsl(30 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Jack Li · 高级</div></div><div class="shift-block senior" style="top:442px;left:174px;width:162px;height:196px;background:hsl(1 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jasmine Liu · 高级</div></div><div class="shift-block senior" style="top:202px;left:344px;width:162px;height:236px;background:hsl(10 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Junbin Wu · 高级</div></div><div class="shift-block senior" style="top:162px;left:514px;width:162px;height:276px;background:hsl(36 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Kelly Lin · 高级</div></div><div class="shift-block senior" style="top:442px;left:684px;width:162px;height:196px;background:hsl(21 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Kelsey · 高级</div></div><div class="shift-block senior" style="top:442px;left:854px;width:162px;height:196px;background:hsl(14 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Shelly Wang · 高级</div></div><div class="shift-block senior" style="top:162px;left:1024px;width:162px;height:276px;background:hsl(7 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Simeon Tian · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(25 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Tomy · 高级</div></div><div class="shift-block senior" style="top:442px;left:1364px;width:162px;height:196px;background:hsl(7 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Winnie Wang · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-4" data-date="2026-04-02" data-name="周四">
+          <div class="day-header">周四 2026-04-02</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Berlin, Jack Li, Kelly Lin</span></div>
+            <div class="card"><b>14点到岗</b><span>-</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>4 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>5 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:4 CC:5</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:1360px"><div class="lane-h senior" style="left:0px;width:170px">Berlin</div><div class="lane-h senior" style="left:170px;width:170px">Jack Li</div><div class="lane-h senior" style="left:340px;width:170px">Jasmine Liu</div><div class="lane-h senior" style="left:510px;width:170px">Jenny Chen</div><div class="lane-h senior" style="left:680px;width:170px">Judy Zhu</div><div class="lane-h senior" style="left:850px;width:170px">Kelly Lin</div><div class="lane-h senior" style="left:1020px;width:170px">Kelsey</div><div class="lane-h senior" style="left:1190px;width:170px">Viko Ge</div></div>
+            <div class="blocks" style="width:1360px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:162px;left:4px;width:162px;height:276px;background:hsl(4 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Berlin · 高级</div></div><div class="shift-block senior" style="top:162px;left:174px;width:162px;height:476px;background:hsl(30 62% 82%)"><div class="shift-label">白天 + 晚班</div><div class="shift-time">10:00~22:00</div><div class="shift-emp">Jack Li · 高级</div></div><div class="shift-block senior" style="top:442px;left:344px;width:162px;height:196px;background:hsl(1 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jasmine Liu · 高级</div></div><div class="shift-block senior" style="top:442px;left:514px;width:162px;height:196px;background:hsl(10 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jenny Chen · 高级</div></div><div class="shift-block senior" style="top:442px;left:684px;width:162px;height:196px;background:hsl(35 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Judy Zhu · 高级</div></div><div class="shift-block senior" style="top:162px;left:854px;width:162px;height:276px;background:hsl(36 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Kelly Lin · 高级</div></div><div class="shift-block senior" style="top:202px;left:1024px;width:162px;height:236px;background:hsl(21 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Kelsey · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(13 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Viko Ge · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-5" data-date="2026-04-03" data-name="周五">
+          <div class="day-header">周五 2026-04-03</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Maomao Wu, Tina Gu, Zoe Wong</span></div>
+            <div class="card"><b>14点到岗</b><span>Halsey</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>4 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>6 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:4 CC:6</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:1530px"><div class="lane-h senior" style="left:0px;width:170px">Halsey</div><div class="lane-h senior" style="left:170px;width:170px">Jasmine Liu</div><div class="lane-h senior" style="left:340px;width:170px">Maomao Wu</div><div class="lane-h senior" style="left:510px;width:170px">Ou Liu</div><div class="lane-h senior" style="left:680px;width:170px">Simeon Tian</div><div class="lane-h senior" style="left:850px;width:170px">Tina Gu</div><div class="lane-h senior" style="left:1020px;width:170px">Tomy</div><div class="lane-h senior" style="left:1190px;width:170px">Winnie Wang</div><div class="lane-h senior" style="left:1360px;width:170px">Zoe Wong</div></div>
+            <div class="blocks" style="width:1530px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:322px;left:4px;width:162px;height:316px;background:hsl(14 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">14:00~22:00</div><div class="shift-emp">Halsey · 高级</div></div><div class="shift-block senior" style="top:442px;left:174px;width:162px;height:196px;background:hsl(1 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jasmine Liu · 高级</div></div><div class="shift-block senior" style="top:162px;left:344px;width:162px;height:476px;background:hsl(38 62% 82%)"><div class="shift-label">白天 + 晚班</div><div class="shift-time">10:00~22:00</div><div class="shift-emp">Maomao Wu · 高级</div></div><div class="shift-block senior" style="top:202px;left:514px;width:162px;height:236px;background:hsl(6 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Ou Liu · 高级</div></div><div class="shift-block senior" style="top:442px;left:684px;width:162px;height:196px;background:hsl(7 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Simeon Tian · 高级</div></div><div class="shift-block senior" style="top:162px;left:854px;width:162px;height:276px;background:hsl(16 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Tina Gu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1024px;width:162px;height:196px;background:hsl(25 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Tomy · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(7 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Winnie Wang · 高级</div></div><div class="shift-block senior" style="top:162px;left:1364px;width:162px;height:276px;background:hsl(25 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Zoe Wong · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-6" data-date="2026-04-04" data-name="周六">
+          <div class="day-header">周六 2026-04-04</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Tina Gu, Viko Ge, Winnie Wang</span></div>
+            <div class="card"><b>14点到岗</b><span>Halsey</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>6 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>6 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:6 CC:6</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:2040px"><div class="lane-h senior" style="left:0px;width:170px">Berlin</div><div class="lane-h senior" style="left:170px;width:170px">Halsey</div><div class="lane-h senior" style="left:340px;width:170px">Jack Li</div><div class="lane-h senior" style="left:510px;width:170px">Jenny Chen</div><div class="lane-h senior" style="left:680px;width:170px">Junbin Wu</div><div class="lane-h senior" style="left:850px;width:170px">Maomao Wu</div><div class="lane-h senior" style="left:1020px;width:170px">Ou Liu</div><div class="lane-h senior" style="left:1190px;width:170px">Simeon Tian</div><div class="lane-h senior" style="left:1360px;width:170px">Tina Gu</div><div class="lane-h senior" style="left:1530px;width:170px">Tomy</div><div class="lane-h senior" style="left:1700px;width:170px">Viko Ge</div><div class="lane-h senior" style="left:1870px;width:170px">Winnie Wang</div></div>
+            <div class="blocks" style="width:2040px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:442px;left:4px;width:162px;height:196px;background:hsl(4 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Berlin · 高级</div></div><div class="shift-block senior" style="top:322px;left:174px;width:162px;height:316px;background:hsl(14 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">14:00~22:00</div><div class="shift-emp">Halsey · 高级</div></div><div class="shift-block senior" style="top:202px;left:344px;width:162px;height:236px;background:hsl(30 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Jack Li · 高级</div></div><div class="shift-block senior" style="top:442px;left:514px;width:162px;height:196px;background:hsl(10 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jenny Chen · 高级</div></div><div class="shift-block senior" style="top:202px;left:684px;width:162px;height:236px;background:hsl(10 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Junbin Wu · 高级</div></div><div class="shift-block senior" style="top:442px;left:854px;width:162px;height:196px;background:hsl(38 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Maomao Wu · 高级</div></div><div class="shift-block senior" style="top:202px;left:1024px;width:162px;height:236px;background:hsl(6 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Ou Liu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(7 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Simeon Tian · 高级</div></div><div class="shift-block senior" style="top:162px;left:1364px;width:162px;height:276px;background:hsl(16 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Tina Gu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1534px;width:162px;height:196px;background:hsl(25 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Tomy · 高级</div></div><div class="shift-block senior" style="top:162px;left:1704px;width:162px;height:276px;background:hsl(13 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Viko Ge · 高级</div></div><div class="shift-block senior" style="top:162px;left:1874px;width:162px;height:276px;background:hsl(7 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Winnie Wang · 高级</div></div></div>
+          </div>
+        </div>
+        
+        <div class="day-page" id="day-7" data-date="2026-04-05" data-name="周日">
+          <div class="day-header">周日 2026-04-05</div>
+          <div class="summary">
+            <div class="card"><b>开早(10-11)</b><span>Kelsey, Winnie Wang, Zoe Wong</span></div>
+            <div class="card"><b>14点到岗</b><span>-</span></div>
+            <div class="card"><b>白天合计(AA+BB)</b><span>7 人</span></div>
+            <div class="card"><b>晚班合计(AA+CC)</b><span>6 人</span></div>
+            <div class="card"><b>AA/BB/CC</b><span>AA:0 BB:7 CC:6</span></div>
+          </div>
+          <div class="timeline-wrap" style="height:726px">
+            <div class="time-axis"><div class="tm" style="top:0px">06:00</div><div class="tm" style="top:40px">07:00</div><div class="tm" style="top:80px">08:00</div><div class="tm" style="top:120px">09:00</div><div class="tm" style="top:160px">10:00</div><div class="tm" style="top:200px">11:00</div><div class="tm" style="top:240px">12:00</div><div class="tm" style="top:280px">13:00</div><div class="tm" style="top:320px">14:00</div><div class="tm" style="top:360px">15:00</div><div class="tm" style="top:400px">16:00</div><div class="tm" style="top:440px">17:00</div><div class="tm" style="top:480px">18:00</div><div class="tm" style="top:520px">19:00</div><div class="tm" style="top:560px">20:00</div><div class="tm" style="top:600px">21:00</div><div class="tm" style="top:640px">22:00</div><div class="tm" style="top:680px">23:00</div></div>
+            <div class="lanes-head" style="width:2210px"><div class="lane-h senior" style="left:0px;width:170px">Berlin</div><div class="lane-h senior" style="left:170px;width:170px">Halsey</div><div class="lane-h senior" style="left:340px;width:170px">Jack Li</div><div class="lane-h senior" style="left:510px;width:170px">Jenny Chen</div><div class="lane-h senior" style="left:680px;width:170px">Junbin Wu</div><div class="lane-h senior" style="left:850px;width:170px">Kelsey</div><div class="lane-h senior" style="left:1020px;width:170px">Maomao Wu</div><div class="lane-h senior" style="left:1190px;width:170px">Ou Liu</div><div class="lane-h senior" style="left:1360px;width:170px">Tina Gu</div><div class="lane-h senior" style="left:1530px;width:170px">Tomy</div><div class="lane-h senior" style="left:1700px;width:170px">Viko Ge</div><div class="lane-h senior" style="left:1870px;width:170px">Winnie Wang</div><div class="lane-h senior" style="left:2040px;width:170px">Zoe Wong</div></div>
+            <div class="blocks" style="width:2210px;height:680px"><div class="hline" style="top:0px"></div><div class="hline" style="top:40px"></div><div class="hline" style="top:80px"></div><div class="hline" style="top:120px"></div><div class="hline" style="top:160px"></div><div class="hline" style="top:200px"></div><div class="hline" style="top:240px"></div><div class="hline" style="top:280px"></div><div class="hline" style="top:320px"></div><div class="hline" style="top:360px"></div><div class="hline" style="top:400px"></div><div class="hline" style="top:440px"></div><div class="hline" style="top:480px"></div><div class="hline" style="top:520px"></div><div class="hline" style="top:560px"></div><div class="hline" style="top:600px"></div><div class="hline" style="top:640px"></div><div class="hline" style="top:680px"></div><div class="shift-block senior" style="top:442px;left:4px;width:162px;height:196px;background:hsl(4 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Berlin · 高级</div></div><div class="shift-block senior" style="top:202px;left:174px;width:162px;height:236px;background:hsl(14 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Halsey · 高级</div></div><div class="shift-block senior" style="top:442px;left:344px;width:162px;height:196px;background:hsl(30 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jack Li · 高级</div></div><div class="shift-block senior" style="top:442px;left:514px;width:162px;height:196px;background:hsl(10 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Jenny Chen · 高级</div></div><div class="shift-block senior" style="top:202px;left:684px;width:162px;height:236px;background:hsl(10 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Junbin Wu · 高级</div></div><div class="shift-block senior" style="top:162px;left:854px;width:162px;height:276px;background:hsl(21 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Kelsey · 高级</div></div><div class="shift-block senior" style="top:442px;left:1024px;width:162px;height:196px;background:hsl(38 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Maomao Wu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1194px;width:162px;height:196px;background:hsl(6 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Ou Liu · 高级</div></div><div class="shift-block senior" style="top:202px;left:1364px;width:162px;height:236px;background:hsl(16 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Tina Gu · 高级</div></div><div class="shift-block senior" style="top:442px;left:1534px;width:162px;height:196px;background:hsl(25 62% 82%)"><div class="shift-label">晚班</div><div class="shift-time">17:00~22:00</div><div class="shift-emp">Tomy · 高级</div></div><div class="shift-block senior" style="top:202px;left:1704px;width:162px;height:236px;background:hsl(13 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">11:00~17:00</div><div class="shift-emp">Viko Ge · 高级</div></div><div class="shift-block senior" style="top:162px;left:1874px;width:162px;height:276px;background:hsl(7 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Winnie Wang · 高级</div></div><div class="shift-block senior" style="top:162px;left:2044px;width:162px;height:276px;background:hsl(25 62% 82%)"><div class="shift-label">白天</div><div class="shift-time">10:00~17:00</div><div class="shift-emp">Zoe Wong · 高级</div></div></div>
+          </div>
+        </div>
+        
+<p class="foot">共 71 个班次 · 浏览器视图已与文字口径对齐</p>
+<script>
+let curr = 1;
+function show(day) {
+  curr = Math.max(1, Math.min(7, day));
+  document.querySelectorAll('.day-page').forEach(el => el.classList.remove('active'));
+  const p = document.getElementById('day-' + curr);
+  p.classList.add('active');
+  document.getElementById('curr-date').textContent = p.dataset.name + ' ' + p.dataset.date;
+}
+function nav(delta) { show(curr + delta); }
+async function applyAndRerun() {
+  const el = document.getElementById('apply-msg');
+  const base = (document.getElementById('api-base').value || 'http://127.0.0.1:8765').trim();
+  el.textContent = '正在应用建议并重新排班，请稍候...';
+  try {
+    const resp = await fetch(base + '/api/roster/apply-and-rerun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    if (resp.status === 404) {
+      const resp2 = await fetch(base + '/apply-and-rerun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+      });
+      const data2 = await resp2.json();
+      if (!resp2.ok || data2.success === false) throw new Error(data2.message || ('HTTP ' + resp2.status));
+      el.textContent = '应用成功，2秒后自动刷新页面';
+      setTimeout(() => window.location.reload(), 2000);
+      return;
+    }
+    const data = await resp.json();
+    if (!resp.ok || data.success === false) {
+      throw new Error(data.message || ('HTTP ' + resp.status));
+    }
+    el.textContent = '应用成功，2秒后自动刷新页面';
+    setTimeout(() => window.location.reload(), 2000);
+  } catch (err) {
+    el.textContent = '应用失败: ' + (err?.message || err) + '。请先启动 demo_apply_server。';
+  }
+}
+show(1);
+</script>
+</body>
+</html>

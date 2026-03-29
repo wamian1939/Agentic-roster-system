@@ -1,0 +1,47 @@
+{
+  "summary": "优化员工排班公平性和连班限制",
+  "suggestions": [
+    {
+      "id": "S1",
+      "priority": "high",
+      "title": "调整员工排班量",
+      "plain_advice": "减少超负荷员工排班，增加欠排员工班次",
+      "why": "部分员工排班超预期，影响公平",
+      "how_to_apply": "优先给Viko Ge、Winnie Wang等欠排员工排班",
+      "target_rule_id": "M_WEEKEND_ASSIGN_POLICY",
+      "change": {
+        "field": "params.prefer_even_distribution",
+        "from": "true",
+        "to": "true"
+      }
+    },
+    {
+      "id": "S2",
+      "priority": "medium",
+      "title": "控制全天班人数",
+      "plain_advice": "优先每天全天班不超过2人，必要时放宽",
+      "why": "减少全天班过多，避免员工疲劳",
+      "how_to_apply": "严格执行max_aa_per_day_preferred为2的限制",
+      "target_rule_id": "M_AA_DAILY_POLICY",
+      "change": {
+        "field": "params.max_aa_per_day_preferred",
+        "from": "2",
+        "to": "2"
+      }
+    },
+    {
+      "id": "S3",
+      "priority": "medium",
+      "title": "限制白晚连班人数",
+      "plain_advice": "优先每天白晚连班不超过2人，必要时放宽",
+      "why": "防止连班过多，保障员工休息",
+      "how_to_apply": "严格执行max_bb_cc_combo_per_day_preferred为2的限制",
+      "target_rule_id": "M_COMBO_DAILY_POLICY",
+      "change": {
+        "field": "params.max_bb_cc_combo_per_day_preferred",
+        "from": "2",
+        "to": "2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "S_FAIR_NIGHT",
+    "type": "soft",
+    "scope": "employee_week",
+    "weight": 3.0,
+    "penalty": {
+      "name": "deviation_from_mean",
+      "params": {
+        "target_shift": "BB"
+      }
+    },
+    "message": "晚班分配不均。"
+  },
+  {
+    "id": "S_MIN_CHANGE_FROM_DRAFT",
+    "type": "soft",
+    "scope": "assignment",
+    "weight": 5.0,
+    "penalty": {
+      "name": "hamming_distance_from_draft"
+    },
+    "message": "为满足约束，对初稿做了改动。"
+  }
+]
