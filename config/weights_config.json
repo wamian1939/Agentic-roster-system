@@ -1,0 +1,25 @@
+{
+  "description": "员工权重配置（0~1，越高越优先排班）",
+  "last_updated": "2026-03-29",
+  "weights": {
+    "Judy Zhu": 0.1,
+    "Jasmine Liu": 0.4,
+    "Viko Ge": 0.7,
+    "Zoe Wong": 0.2,
+    "Simeon Tian": 0.6,
+    "Kelly Lin": 0.2,
+    "Ou Liu": 0.6,
+    "Berlin": 0.6,
+    "Jenny Chen": 0.6,
+    "Tina Gu": 0.8,
+    "Winnie Wang": 0.96,
+    "Junbin Wu": 0.5,
+    "Maomao Wu": 0.9,
+    "Halsey": 0.6,
+    "Shelly Wang": 0.4,
+    "Jack Li": 0.9,
+    "Tomy": 0.6,
+    "Kelsey": 0.4
+  },
+  "notes": "权重说明：\n  - 0.0~0.3: 低优先级（少排班）\n  - 0.3~0.5: 普通优先级（中等排班）\n  - 0.5~0.8: 较高优先级（多排班）\n  - 0.8~1.0: 最高优先级（最多排班）\n  - 全岗员工会额外加 0.5 的系统加分"
+}

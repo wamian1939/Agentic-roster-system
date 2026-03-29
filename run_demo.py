@@ -21,6 +21,23 @@ if USE_ORTOOLS:
 else:
     from core.solver_simple import solve_greedy
 
+
+def load_weights_config(config_path: Path = None) -> dict:
+    """从 config/weights_config.json 加载员工权重配置"""
+    if config_path is None:
+        config_path = PROJECT_ROOT / "config" / "weights_config.json"
+    
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            config = json.load(f)
+        weights = config.get("weights", {})
+        print(f"✓ 从 {config_path} 加载了 {len(weights)} 名员工的权重配置")
+        return weights
+    except FileNotFoundError:
+        print(f"⚠️  权重配置文件不存在: {config_path}")
+        print("   使用默认权重（所有员工 0.5）")
+        return {}
+
 # 示例员工改为你提供的报班名单
 employees = [
     Employee(id="Judy Zhu", level=2, max_hours_week=999),
@@ -64,28 +81,10 @@ availability_raw = {
     "Kelsey": "23467AA5BB",
 }
 
-# 个人权重（0~1）：数值越高越优先
-# 未配置的人默认 0.5
-personal_weights = {
-    "Judy Zhu": 0.1,
-    "Jasmine Liu": 0.4,
-    "Viko Ge": 0.7,
-    "Zoe Wong": 0.2,
-    "Simeon Tian": 0.6,
-    "Kelly Lin": 0.2,
-    "Ou Liu": 0.6,
-    "Berlin": 0.6,
-    "Jenny Chen": 0.6,
-    "Tina Gu": 0.8,
-    "Winnie Wang": 0.96,
-    "Junbin Wu": 0.5,
-    "Maomao Wu": 0.9,
-    "Halsey": 0.6,
-    "Shelly Wang": 0.4,
-    "Jack Li": 0.9,
-    "Tomy": 0.6,
-    "Kelsey": 0.4,
-}
+# ==========================================
+# 从配置文件加载权重
+# ==========================================
+personal_weights = load_weights_config()
 
 
 def build_demand(base_day_required: int, base_night_required: int):
